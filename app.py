@@ -4,6 +4,7 @@ import streamlit as st
 st.set_page_config(page_title="AutoExpert AI", page_icon="🚗", layout="centered")
 
 # --- KNOWLEDGE BASE (30 SCENARIOS) ---
+# Divided into Engine, Electrical, Steering, and Chassis 
 knowledge_base = {
     "Engine": [
         {"question": "Is there blue smoke coming from the exhaust?", "fault": "Oil burning in combustion", "solution": "Check piston rings and valve seals."},
@@ -45,55 +46,80 @@ knowledge_base = {
     ]
 }
 
-# --- LOGIC & UI (Same as previous, using Session State) ---
+# --- SESSION STATE INITIALIZATION ---
 if "step" not in st.session_state:
     st.session_state.step = "select_domain"
     st.session_state.domain = None
     st.session_state.q_index = 0
-    st.session_state.history = []
+    st.session_state.detected_faults = []
 
-st.title("🚗 AutoExpert: Smart Diagnosis")
-st.write("Professional Vehicle Fault Diagnosis Expert System")
+# --- UI HEADER ---
+st.title("🚗 AutoExpert Professional Diagnosis")
+st.write(f"Department of Robotics and AI | Group 4 Project [cite: 1, 6]")
 st.divider()
 
+# --- STEP 1: SELECT DOMAIN ---
 if st.session_state.step == "select_domain":
-    st.subheader("Select the affected area:")
-    domains = list(knowledge_base.keys())
-    for domain in domains:
-        if st.button(f"Analyze {domain}", use_container_width=True):
+    st.subheader("Select the vehicle system you want to inspect:")
+    for domain in knowledge_base.keys():
+        if st.button(f"🔍 Inspect {domain} System", use_container_width=True):
             st.session_state.domain = domain
             st.session_state.step = "diagnosing"
-            st.rerun()
-
-elif st.session_state.step == "diagnosing":
-    current_rules = knowledge_base[st.session_state.domain]
-    if st.session_state.q_index < len(current_rules):
-        rule = current_rules[st.session_state.q_index]
-        st.info(f"System: {st.session_state.domain}")
-        st.subheader(rule["question"])
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Yes", use_container_width=True):
-                st.session_state.history.append(rule)
-                st.session_state.step = "show_result"
-                st.rerun()
-        with col2:
-            if st.button("❌ No", use_container_width=True):
-                st.session_state.q_index += 1
-                st.rerun()
-    else:
-        st.warning("No specific fault identified in this category.")
-        if st.button("Try Another Category"):
-            st.session_state.step = "select_domain"
             st.session_state.q_index = 0
             st.rerun()
 
-elif st.session_state.step == "show_result":
-    res = st.session_state.history[-1]
-    st.success(f"**Diagnosis:** {res['fault']}")
-    st.info(f"**Solution:** {res['solution']}")
-    st.divider()
-    if st.button("Check Another Symptom"):
-        st.session_state.step = "select_domain"
-        st.session_state.q_index = 0
+# --- STEP 2: SEQUENTIAL QUESTIONS ---
+elif st.session_state.step == "diagnosing":
+    rules = knowledge_base[st.session_state.domain]
+    
+    # Check if we have more questions to ask
+    if st.session_state.q_index < len(rules):
+        current_rule = rules[st.session_state.q_index]
+        st.info(f"System Check: {st.session_state.domain} ({st.session_state.q_index + 1}/{len(rules)})")
+        st.subheader(current_rule["question"])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Yes", key=f"yes_{st.session_state.q_index}", use_container_width=True):
+                st.session_state.detected_faults.append(current_rule)
+                st.session_state.q_index += 1
+                st.rerun()
+        with col2:
+            if st.button("❌ No", key=f"no_{st.session_state.q_index}", use_container_width=True):
+                st.session_state.q_index += 1
+                st.rerun()
+    else:
+        # No more questions in this domain, show final report
+        st.session_state.step = "final_report"
         st.rerun()
+
+# --- STEP 3: PROFESSIONAL FINAL REPORT ---
+elif st.session_state.step == "final_report":
+    st.header("📋 Diagnostic Final Report")
+    
+    if st.session_state.detected_faults:
+        st.warning(f"The system detected {len(st.session_state.detected_faults)} potential issues in the {st.session_state.domain} system.")
+        for i, fault in enumerate(st.session_state.detected_faults):
+            with st.expander(f"Issue #{i+1}: {fault['fault']}", expanded=True):
+                st.write(f"**Symptom Reported:** {fault['question']}")
+                st.write(f"**🔧 Recommended Action:** {fault['solution']}")
+    else:
+        st.success(f"Inspection Complete: No faults detected in the {st.session_state.domain} system.")
+
+    st.divider()
+    st.write("Would you like to inspect another part of the vehicle?")
+    colA, colB = st.columns(2)
+    with colA:
+        if st.button("🔄 Inspect New Domain", use_container_width=True):
+            st.session_state.step = "select_domain"
+            st.session_state.domain = None
+            st.session_state.q_index = 0
+            st.session_state.detected_faults = []
+            st.rerun()
+    with colB:
+        if st.button("🏁 Finish & Exit", use_container_width=True):
+            st.balloons()
+            st.write("Thank you for using the AutoExpert System! Please consult a certified mechanic for major repairs.")
+            if st.button("Reset System"):
+                st.session_state.clear()
+                st.rerun()
